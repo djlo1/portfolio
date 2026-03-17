@@ -191,7 +191,6 @@ export default function Hero({ data }) {
                     className="w-full h-full object-cover"
                   />
                 </div>
-                {/* Subtle glow behind */}
                 <div className="absolute inset-0 rounded-full bg-gradient-to-br from-[var(--color-accent)]/20 to-[var(--color-accent-2)]/20 blur-2xl -z-10 scale-110 opacity-60" />
               </div>
             </div>
