@@ -95,7 +95,8 @@ export default function Hero({ data }) {
 
       {/* Content */}
       <div className="container-custom relative z-10 pt-24 pb-16">
-        <div className="max-w-4xl">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:gap-16">
+        <div className="flex-1 max-w-4xl">
           {/* Status badge */}
           <div
             className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[var(--color-accent)]/8 border border-[var(--color-accent)]/20 mb-8"
@@ -174,6 +175,28 @@ export default function Hero({ data }) {
               </div>
             ))}
           </div>
+        </div>
+
+          {/* Profile photo */}
+          {data.photo && data.photo !== "/photo.jpg" && (
+            <div
+              className="hidden lg:flex flex-shrink-0"
+              style={{ animation: "fadeIn 1s ease-out 0.5s both" }}
+            >
+              <div className="relative">
+                <div className="w-64 h-64 xl:w-72 xl:h-72 rounded-3xl overflow-hidden border-2 border-[var(--color-accent)]/20 shadow-2xl shadow-[var(--color-accent)]/10">
+                  <img
+                    src={data.photo}
+                    alt={`${data.firstName} ${data.lastName}`}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                {/* Decorative ring */}
+                <div className="absolute -inset-3 rounded-3xl border border-[var(--color-accent)]/10 -z-10" />
+                <div className="absolute -inset-6 rounded-3xl border border-[var(--color-accent)]/5 -z-10" />
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
