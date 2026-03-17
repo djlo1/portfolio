@@ -28,7 +28,28 @@ const icons = {
   x: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
   check: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>,
   arrows: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="7 15 12 20 17 15"/><polyline points="7 9 12 4 17 9"/></svg>,
+  upload: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>,
+  image: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>,
+  link: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>,
 };
+
+// ═══════════════════════════════════════════════
+// IMAGE UPLOAD HELPER
+// ═══════════════════════════════════════════════
+async function uploadImage(file, folder = "photos") {
+  if (!sb) return { url: null, error: "Supabase not configured" };
+  const ext = file.name.split(".").pop().toLowerCase();
+  const allowed = ["jpg", "jpeg", "png", "webp", "gif"];
+  if (!allowed.includes(ext)) return { url: null, error: "Format non supporté. Utilisez JPG, PNG ou WebP." };
+  if (file.size > 5 * 1024 * 1024) return { url: null, error: "Fichier trop volumineux (max 5 MB)" };
+
+  const fileName = `${folder}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const { error } = await sb.storage.from("portfolio").upload(fileName, file, { upsert: true });
+  if (error) return { url: null, error: error.message };
+
+  const { data: urlData } = sb.storage.from("portfolio").getPublicUrl(fileName);
+  return { url: urlData.publicUrl, error: null };
+}
 
 // ═══════════════════════════════════════════════
 // SECTIONS CONFIG
@@ -359,9 +380,21 @@ function PersonalInfoView({ data, onEdit }) {
     <div className="space-y-6">
       <div className="glass-card p-6" style={{background:"rgba(18,19,26,.7)",border:"1px solid rgba(42,43,53,.6)",borderRadius:"16px"}}>
         <div className="flex items-start justify-between mb-6">
-          <div>
-            <h2 className="font-display font-bold text-white text-2xl">{data.first_name} {data.last_name}</h2>
-            <p className="text-[#00f0ff] text-sm mt-1">{data.title}</p>
+          <div className="flex items-center gap-5">
+            {/* Photo */}
+            {data.photo_url ? (
+              <div className="w-20 h-20 rounded-2xl overflow-hidden border-2 border-[#00f0ff]/20 flex-shrink-0">
+                <img src={data.photo_url} alt="Profile" className="w-full h-full object-cover" />
+              </div>
+            ) : (
+              <div className="w-20 h-20 rounded-2xl bg-[#1a1b24] border border-[#2a2b35] flex items-center justify-center text-[#8b8d9a]/40 flex-shrink-0">
+                {icons.user}
+              </div>
+            )}
+            <div>
+              <h2 className="font-display font-bold text-white text-2xl">{data.first_name} {data.last_name}</h2>
+              <p className="text-[#00f0ff] text-sm mt-1">{data.title}</p>
+            </div>
           </div>
           <button onClick={() => onEdit(data)} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 border border-[#2a2b35] text-white text-sm hover:border-[#00f0ff]/30 transition-all">
             {icons.edit} Modifier
@@ -586,12 +619,73 @@ function EditForm({ section, item, onSave, onCancel, saving }) {
     );
   };
 
+  // Image upload field
+  const ImageUploadField = ({ label, currentUrl, onUpload, folder }) => {
+    const [uploading, setUploading] = useState(false);
+    const [error, setError] = useState("");
+
+    const handleFile = async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      setUploading(true);
+      setError("");
+      const { url, error: err } = await uploadImage(file, folder);
+      if (err) { setError(err); }
+      else { onUpload(url); }
+      setUploading(false);
+    };
+
+    return (
+      <div>
+        <label className="block text-[10px] text-[#8b8d9a] font-mono uppercase mb-2">{label}</label>
+        <div className="flex items-start gap-4">
+          {/* Preview */}
+          <div className="flex-shrink-0 w-24 h-24 rounded-xl bg-[#1a1b24] border border-[#2a2b35] overflow-hidden flex items-center justify-center">
+            {currentUrl ? (
+              <img src={currentUrl} alt="Preview" className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-[#8b8d9a]/40">{icons.image}</span>
+            )}
+          </div>
+          {/* Upload */}
+          <div className="flex-1 space-y-2">
+            <label className={`flex items-center gap-2 px-4 py-3 rounded-xl border border-dashed cursor-pointer transition-all ${uploading ? 'border-[#00f0ff]/30 bg-[#00f0ff]/5' : 'border-[#2a2b35] bg-[#1a1b24] hover:border-[#00f0ff]/30'}`}>
+              <input type="file" accept="image/png,image/jpeg,image/jpg,image/webp" onChange={handleFile} className="hidden" disabled={uploading} />
+              {uploading ? (
+                <span className="text-sm text-[#00f0ff]">Envoi en cours...</span>
+              ) : (
+                <>
+                  {icons.upload}
+                  <span className="text-sm text-[#8b8d9a]">Choisir une image (JPG, PNG, WebP)</span>
+                </>
+              )}
+            </label>
+            {error && <p className="text-xs text-red-400">{error}</p>}
+            {currentUrl && (
+              <div className="flex items-center gap-2">
+                <input value={currentUrl} readOnly className="flex-1 px-3 py-1.5 rounded-lg bg-[#1a1b24] border border-[#2a2b35] text-[#8b8d9a] text-[11px] font-mono truncate" />
+                <button type="button" onClick={() => onUpload("")} className="text-xs text-red-400 hover:text-red-300 px-2">Retirer</button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // Render fields by section
   const renderFields = () => {
     switch (section) {
       case "personal_info":
         return (
           <>
+            {/* Photo upload */}
+            <ImageUploadField
+              label="Photo de profil"
+              currentUrl={form.photo_url}
+              onUpload={(url) => set("photo_url", url)}
+              folder="photos"
+            />
             <div className="grid grid-cols-2 gap-4">
               <Field label="Prénom" name="first_name" required placeholder="Djlo" />
               <Field label="Nom" name="last_name" required placeholder="ALOHOU" />
@@ -643,9 +737,25 @@ function EditForm({ section, item, onSave, onCancel, saving }) {
               <Field label="Ordre d'affichage" name="sort_order" type="number" placeholder="1" />
               <Field label="Projet phare ?" name="highlight" type="checkbox" placeholder="Mettre en avant ce projet" />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="URL image (optionnel)" name="image_url" placeholder="https://..." />
-              <Field label="Lien externe (optionnel)" name="link" placeholder="https://..." />
+            {/* Project image */}
+            <ImageUploadField
+              label="Image du projet (optionnel)"
+              currentUrl={form.image_url}
+              onUpload={(url) => set("image_url", url)}
+              folder="projects"
+            />
+            <Field label="Lien du projet (URL publique)" name="link" placeholder="https://mon-projet.com" />
+            <div>
+              <label className="block text-[10px] text-[#8b8d9a] font-mono uppercase mb-2">Visibilité du lien</label>
+              <select
+                value={form.link_visibility || "public"}
+                onChange={(e) => set("link_visibility", e.target.value)}
+                className="w-full px-4 py-3 rounded-xl bg-[#1a1b24] border border-[#2a2b35] text-white text-sm focus:outline-none focus:border-[#00f0ff]/50 transition-all"
+              >
+                <option value="public">Public — Visiteurs peuvent voir et visiter</option>
+                <option value="preview">Aperçu — Bouton "Voir le projet"</option>
+                <option value="private">Privé — Pas de lien affiché</option>
+              </select>
             </div>
             <JsonArrayField label="Tags" name="tags" placeholder="FMS, IoT, Web..." />
           </>
