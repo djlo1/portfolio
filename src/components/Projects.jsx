@@ -59,36 +59,66 @@ export default function Projects({ data }) {
           {highlighted.map((project, i) => (
             <div
               key={project.id || i}
-              className="animate-on-scroll glass-card glass-card-hover p-6 flex flex-col relative overflow-hidden group"
+              className="animate-on-scroll glass-card glass-card-hover p-0 flex flex-col relative overflow-hidden group"
               style={{ transitionDelay: `${i * 0.1}s` }}
             >
               {/* Top accent line */}
-              <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-[var(--color-accent)] via-[var(--color-accent-2)] to-transparent" />
+              <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-[var(--color-accent)] via-[var(--color-accent-2)] to-transparent z-10" />
 
-              {/* Featured badge */}
-              <div className="flex items-center gap-2 mb-4">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="var(--color-accent)" stroke="none">
-                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                </svg>
-                <span className="text-xs font-mono text-[var(--color-accent)] uppercase">
-                  Projet phare
-                </span>
-              </div>
+              {/* Project image */}
+              {project.image_url && (
+                <div className="w-full h-44 overflow-hidden">
+                  <img
+                    src={project.image_url}
+                    alt={project.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                </div>
+              )}
 
-              <h3 className="font-display font-bold text-lg text-white mb-3 group-hover:text-[var(--color-accent)] transition-colors">
-                {project.title}
-              </h3>
-
-              <p className="text-sm text-[var(--color-text-dim)] leading-relaxed mb-6 flex-1">
-                {project.description}
-              </p>
-
-              <div className="flex flex-wrap gap-2">
-                {(project.tags || []).map((tag, j) => (
-                  <span key={j} className="tech-tag text-[0.65rem]">
-                    {tag}
+              <div className="p-6 flex flex-col flex-1">
+                {/* Featured badge */}
+                <div className="flex items-center gap-2 mb-4">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="var(--color-accent)" stroke="none">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                  </svg>
+                  <span className="text-xs font-mono text-[var(--color-accent)] uppercase">
+                    Projet phare
                   </span>
-                ))}
+                </div>
+
+                <h3 className="font-display font-bold text-lg text-white mb-3 group-hover:text-[var(--color-accent)] transition-colors">
+                  {project.title}
+                </h3>
+
+                <p className="text-sm text-[var(--color-text-dim)] leading-relaxed mb-5 flex-1">
+                  {project.description}
+                </p>
+
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {(project.tags || []).map((tag, j) => (
+                    <span key={j} className="tech-tag text-[0.65rem]">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+
+                {/* Project link */}
+                {project.link && project.link_visibility !== "private" && (
+                  <a
+                    href={project.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 text-sm font-medium text-[var(--color-accent)] hover:text-white transition-colors mt-auto pt-3 border-t border-[var(--color-border)]"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                      <polyline points="15 3 21 3 21 9" />
+                      <line x1="10" y1="14" x2="21" y2="3" />
+                    </svg>
+                    Voir le projet
+                  </a>
+                )}
               </div>
             </div>
           ))}
@@ -100,21 +130,51 @@ export default function Projects({ data }) {
             {others.map((project, i) => (
               <div
                 key={project.id || i}
-                className="animate-on-scroll glass-card glass-card-hover p-6 flex flex-col"
+                className="animate-on-scroll glass-card glass-card-hover p-0 flex flex-col overflow-hidden group"
                 style={{ transitionDelay: `${(i + highlighted.length) * 0.1}s` }}
               >
-                <h3 className="font-display font-semibold text-white mb-3">
-                  {project.title}
-                </h3>
-                <p className="text-sm text-[var(--color-text-dim)] leading-relaxed mb-6 flex-1">
-                  {project.description}
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {(project.tags || []).map((tag, j) => (
-                    <span key={j} className="tech-tag text-[0.65rem]">
-                      {tag}
-                    </span>
-                  ))}
+                {/* Project image */}
+                {project.image_url && (
+                  <div className="w-full h-36 overflow-hidden">
+                    <img
+                      src={project.image_url}
+                      alt={project.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                  </div>
+                )}
+
+                <div className="p-6 flex flex-col flex-1">
+                  <h3 className="font-display font-semibold text-white mb-3">
+                    {project.title}
+                  </h3>
+                  <p className="text-sm text-[var(--color-text-dim)] leading-relaxed mb-5 flex-1">
+                    {project.description}
+                  </p>
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {(project.tags || []).map((tag, j) => (
+                      <span key={j} className="tech-tag text-[0.65rem]">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+
+                  {/* Project link */}
+                  {project.link && project.link_visibility !== "private" && (
+                    <a
+                      href={project.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 text-sm font-medium text-[var(--color-accent)] hover:text-white transition-colors mt-auto pt-3 border-t border-[var(--color-border)]"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                        <polyline points="15 3 21 3 21 9" />
+                        <line x1="10" y1="14" x2="21" y2="3" />
+                      </svg>
+                      Voir le projet
+                    </a>
+                  )}
                 </div>
               </div>
             ))}
