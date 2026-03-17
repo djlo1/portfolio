@@ -183,17 +183,16 @@ export default function Hero({ data }) {
               className="hidden lg:flex flex-shrink-0"
               style={{ animation: "fadeIn 1s ease-out 0.5s both" }}
             >
-              <div className="relative">
-                <div className="w-64 h-64 xl:w-72 xl:h-72 rounded-3xl overflow-hidden border-2 border-[var(--color-accent)]/20 shadow-2xl shadow-[var(--color-accent)]/10">
+              <div className="relative group">
+                <div className="w-64 h-64 xl:w-72 xl:h-72 rounded-full overflow-hidden shadow-2xl shadow-[var(--color-accent)]/10">
                   <img
                     src={data.photo}
                     alt={`${data.firstName} ${data.lastName}`}
                     className="w-full h-full object-cover"
                   />
                 </div>
-                {/* Decorative ring */}
-                <div className="absolute -inset-3 rounded-3xl border border-[var(--color-accent)]/10 -z-10" />
-                <div className="absolute -inset-6 rounded-3xl border border-[var(--color-accent)]/5 -z-10" />
+                {/* Subtle glow behind */}
+                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-[var(--color-accent)]/20 to-[var(--color-accent-2)]/20 blur-2xl -z-10 scale-110 opacity-60" />
               </div>
             </div>
           )}
