@@ -7,6 +7,7 @@ import Projects from "@/components/Projects";
 import Education from "@/components/Education";
 import Contact from "@/components/Contact";
 import Footer from "@/components/Footer";
+import WhatsAppChat from "@/components/WhatsAppChat";
 import {
   personalInfo as localPersonal,
   experiences as localExperiences,
@@ -93,6 +94,7 @@ export default async function Home() {
       <Education data={data.education} />
       <Contact data={data.personal} />
       <Footer data={data.personal} />
+  <WhatsAppChat phone="22901999989929" name="Djlo" />
     </main>
   );
 }
