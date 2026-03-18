@@ -110,7 +110,7 @@ export default function Hero({ data }) {
 
           {/* Name */}
           <h1
-            className="font-display font-900 text-5xl sm:text-6xl md:text-7xl lg:text-8xl leading-[0.95] mb-6"
+            className="font-display font-900 text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl leading-[0.95] mb-6"
             style={{ animation: "slideUp 0.8s ease-out" }}
           >
             <span className="text-white">{data.firstName}</span>
@@ -191,6 +191,7 @@ export default function Hero({ data }) {
                     className="w-full h-full object-cover"
                   />
                 </div>
+                {/* Subtle glow behind */}
                 <div className="absolute inset-0 rounded-full bg-gradient-to-br from-[var(--color-accent)]/20 to-[var(--color-accent-2)]/20 blur-2xl -z-10 scale-110 opacity-60" />
               </div>
             </div>
