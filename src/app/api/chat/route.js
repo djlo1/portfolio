@@ -25,20 +25,18 @@ RÈGLES:
 - Réponds en français, professionnel et chaleureux
 - 2-3 phrases max par réponse
 - Mets en avant les compétences de Djlo
-- Pour devis/projet: invite à laisser un email
-- Ne révèle pas quel modèle IA tu es
-- Pas de tarifs: invite à discuter avec Djlo`;
+- Pour devis/projet: invite à laisser un email ou attendre que Djlo se connecte
+- Ne dis jamais quel modèle IA tu utilises
+- Pas de tarifs: invite à discuter directement avec Djlo`;
 
 export async function POST(request) {
   try {
-    const body = await request.json();
-    const { conversationId, visitorMessage } = body;
-
+    const { conversationId, visitorMessage } = await request.json();
     if (!conversationId || !visitorMessage) {
       return Response.json({ error: "Missing fields" }, { status: 400 });
     }
 
-    // Check admin online status
+    // Check admin online
     const { data: status } = await sb
       .from("admin_status")
       .select("is_online")
@@ -49,15 +47,7 @@ export async function POST(request) {
       return Response.json({ replied: false, reason: "admin_online" });
     }
 
-    // Check API key
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      console.error("GEMINI_API_KEY not found in env");
-      await sendFallback(conversationId);
-      return Response.json({ replied: true, reason: "no_key_fallback" });
-    }
-
-    // Get last messages for context (only visitor messages to keep it simple)
+    // Get conversation history
     const { data: history } = await sb
       .from("chat_messages")
       .select("sender, message")
@@ -65,98 +55,106 @@ export async function POST(request) {
       .order("created_at", { ascending: true })
       .limit(15);
 
-    // Build clean conversation - Gemini needs user first, alternating roles
-    const contents = [];
-    let lastRole = null;
+    // Build OpenAI-compatible messages (Groq uses same format)
+    const messages = [{ role: "system", content: SYSTEM }];
 
     for (const m of (history || [])) {
-      const role = m.sender === "visitor" ? "user" : "model";
-      const text = m.message.replace(/^🤖\s?/, "").trim();
-      if (!text) continue;
-
-      if (role === lastRole && contents.length > 0) {
-        // Merge same role
-        contents[contents.length - 1].parts[0].text += " " + text;
+      const role = m.sender === "visitor" ? "user" : "assistant";
+      const content = m.message.replace(/^🤖\s?/, "").trim();
+      if (!content) continue;
+      // Merge consecutive same-role messages
+      if (messages.length > 0 && messages[messages.length - 1].role === role) {
+        messages[messages.length - 1].content += "\n" + content;
       } else {
-        // Skip if first message would be model
-        if (contents.length === 0 && role === "model") continue;
-        contents.push({ role, parts: [{ text }] });
-        lastRole = role;
+        messages.push({ role, content });
       }
     }
 
-    // Ensure ends with user message
-    if (contents.length === 0 || lastRole !== "user") {
-      if (lastRole === "user" && contents.length > 0) {
-        contents[contents.length - 1].parts[0].text += " " + visitorMessage;
-      } else {
-        contents.push({ role: "user", parts: [{ text: visitorMessage }] });
-      }
+    // Ensure last message is user
+    if (messages[messages.length - 1]?.role !== "user") {
+      messages.push({ role: "user", content: visitorMessage });
     }
 
-    // Try Gemini 2.0 Flash first, then 1.5 Flash as fallback
-    const models = ["gemini-2.0-flash", "gemini-1.5-flash"];
+    // Try Groq first (free, fast), then Gemini as fallback
     let aiReply = null;
 
-    for (const model of models) {
+    // === GROQ (Llama 3.1 70B) ===
+    const groqKey = process.env.GROQ_API_KEY;
+    if (groqKey && !aiReply) {
       try {
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
-        const res = await fetch(geminiUrl, {
+        const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${groqKey}`,
+          },
           body: JSON.stringify({
-            system_instruction: { parts: [{ text: SYSTEM }] },
-            contents,
-            generationConfig: {
-              maxOutputTokens: 250,
-              temperature: 0.7,
-            },
+            model: "llama-3.1-70b-versatile",
+            messages,
+            max_tokens: 250,
+            temperature: 0.7,
           }),
         });
 
         if (res.ok) {
           const data = await res.json();
-          aiReply = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (aiReply) break;
+          aiReply = data?.choices?.[0]?.message?.content;
         } else {
-          const errBody = await res.text();
-          console.error(`Gemini ${model} error ${res.status}:`, errBody);
+          console.error("Groq error:", res.status, await res.text());
         }
-      } catch (fetchErr) {
-        console.error(`Gemini ${model} fetch error:`, fetchErr.message);
+      } catch (e) {
+        console.error("Groq fetch error:", e.message);
       }
     }
 
-    // If all models failed, try simple single-turn request
-    if (!aiReply) {
+    // === GEMINI FALLBACK ===
+    const geminiKey = process.env.GEMINI_API_KEY;
+    if (geminiKey && !aiReply) {
       try {
-        const simpleRes = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+        // Convert to Gemini format
+        const contents = [];
+        for (const m of messages) {
+          if (m.role === "system") continue;
+          const role = m.role === "user" ? "user" : "model";
+          if (contents.length > 0 && contents[contents.length - 1].role === role) {
+            contents[contents.length - 1].parts[0].text += "\n" + m.content;
+          } else {
+            if (contents.length === 0 && role === "model") continue;
+            contents.push({ role, parts: [{ text: m.content }] });
+          }
+        }
+        if (contents.length === 0) {
+          contents.push({ role: "user", parts: [{ text: visitorMessage }] });
+        }
+
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              contents: [{ role: "user", parts: [{ text: `${SYSTEM}\n\nLe visiteur dit: "${visitorMessage}"\n\nRéponds en 2-3 phrases max.` }] }],
-              generationConfig: { maxOutputTokens: 200, temperature: 0.7 },
+              system_instruction: { parts: [{ text: SYSTEM }] },
+              contents,
+              generationConfig: { maxOutputTokens: 250, temperature: 0.7 },
             }),
           }
         );
-        if (simpleRes.ok) {
-          const d = await simpleRes.json();
-          aiReply = d?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+        if (res.ok) {
+          const data = await res.json();
+          aiReply = data?.candidates?.[0]?.content?.parts?.[0]?.text;
         } else {
-          console.error("Simple Gemini also failed:", await simpleRes.text());
+          console.error("Gemini error:", res.status, await res.text());
         }
       } catch (e) {
-        console.error("Simple Gemini fetch error:", e.message);
+        console.error("Gemini fetch error:", e.message);
       }
     }
 
-    // Final fallback
+    // Final fallback message
     if (!aiReply) {
       await sendFallback(conversationId);
-      return Response.json({ replied: true, reason: "all_failed_fallback" });
+      return Response.json({ replied: true, reason: "fallback" });
     }
 
     // Save AI reply
@@ -172,7 +170,7 @@ export async function POST(request) {
 
     return Response.json({ replied: true });
   } catch (err) {
-    console.error("Chat API top-level error:", err);
+    console.error("Chat API error:", err);
     return Response.json({ error: err.message }, { status: 500 });
   }
 }
@@ -188,31 +186,58 @@ async function sendFallback(conversationId) {
     .eq("id", conversationId);
 }
 
-// GET /api/chat — test endpoint to verify Gemini works
+// GET /api/chat — test endpoint
 export async function GET() {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return Response.json({ status: "error", message: "GEMINI_API_KEY not set" });
+  const groqKey = process.env.GROQ_API_KEY;
+  const geminiKey = process.env.GEMINI_API_KEY;
 
-  try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-      {
+  const result = { groq: "not configured", gemini: "not configured" };
+
+  if (groqKey) {
+    try {
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${groqKey}` },
         body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: "Dis bonjour en une phrase" }] }],
-          generationConfig: { maxOutputTokens: 50 },
+          model: "llama-3.1-70b-versatile",
+          messages: [{ role: "user", content: "Dis bonjour en une phrase" }],
+          max_tokens: 30,
         }),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        result.groq = { status: "ok", reply: d?.choices?.[0]?.message?.content };
+      } else {
+        result.groq = { status: "error", code: res.status, detail: await res.text() };
       }
-    );
-    if (!res.ok) {
-      const err = await res.text();
-      return Response.json({ status: "error", code: res.status, detail: err });
+    } catch (e) {
+      result.groq = { status: "error", message: e.message };
     }
-    const data = await res.json();
-    const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    return Response.json({ status: "ok", reply, key_prefix: apiKey.slice(0, 8) + "..." });
-  } catch (e) {
-    return Response.json({ status: "error", message: e.message });
   }
+
+  if (geminiKey) {
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ role: "user", parts: [{ text: "Dis bonjour en une phrase" }] }],
+            generationConfig: { maxOutputTokens: 30 },
+          }),
+        }
+      );
+      if (res.ok) {
+        const d = await res.json();
+        result.gemini = { status: "ok", reply: d?.candidates?.[0]?.content?.parts?.[0]?.text };
+      } else {
+        result.gemini = { status: "error", code: res.status, detail: (await res.text()).slice(0, 200) };
+      }
+    } catch (e) {
+      result.gemini = { status: "error", message: e.message };
+    }
+  }
+
+  return Response.json(result);
 }
