@@ -30,30 +30,30 @@ export default function AdminChat() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Online status — set online on mount, offline on close
+  // Online status — read current, don't force online
   useEffect(() => {
     if (!sb || !session) return;
-    const goOnline = async () => {
-      await sb.from("admin_status").upsert({ id: "main", is_online: true, last_seen: new Date().toISOString() });
-      setIsOnline(true);
+    // Read current status
+    const readStatus = async () => {
+      const { data } = await sb.from("admin_status").select("is_online").eq("id", "main").single();
+      if (data) setIsOnline(data.is_online);
+      else {
+        // Create row if doesn't exist
+        await sb.from("admin_status").upsert({ id: "main", is_online: false, last_seen: new Date().toISOString() });
+        setIsOnline(false);
+      }
     };
-    const goOffline = async () => {
-      await sb.from("admin_status").upsert({ id: "main", is_online: false, last_seen: new Date().toISOString() });
-    };
-    goOnline();
+    readStatus();
 
-    // Heartbeat every 30s
-    const hb = setInterval(() => {
-      if (isOnline) sb.from("admin_status").upsert({ id: "main", is_online: true, last_seen: new Date().toISOString() });
+    // Heartbeat — only update last_seen if already online, never force online
+    const hb = setInterval(async () => {
+      const { data } = await sb.from("admin_status").select("is_online").eq("id", "main").single();
+      if (data?.is_online) {
+        await sb.from("admin_status").update({ last_seen: new Date().toISOString() }).eq("id", "main");
+      }
     }, 30000);
 
-    // Go offline on tab close
-    const handleUnload = () => {
-      navigator.sendBeacon?.(`${url}/rest/v1/admin_status?id=eq.main`, JSON.stringify({ is_online: false, last_seen: new Date().toISOString() }));
-    };
-    window.addEventListener("beforeunload", handleUnload);
-
-    return () => { clearInterval(hb); window.removeEventListener("beforeunload", handleUnload); goOffline(); };
+    return () => { clearInterval(hb); };
   }, [session]);
 
   // Toggle online status
