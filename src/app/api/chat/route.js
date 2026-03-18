@@ -89,7 +89,7 @@ export async function POST(request) {
             "Authorization": `Bearer ${groqKey}`,
           },
           body: JSON.stringify({
-            model: "llama-3.1-70b-versatile",
+            model: "llama-3.3-70b-versatile",
             messages,
             max_tokens: 250,
             temperature: 0.7,
@@ -199,7 +199,7 @@ export async function GET() {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${groqKey}` },
         body: JSON.stringify({
-          model: "llama-3.1-70b-versatile",
+          model: "llama-3.3-70b-versatile",
           messages: [{ role: "user", content: "Dis bonjour en une phrase" }],
           max_tokens: 30,
         }),
