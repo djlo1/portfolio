@@ -60,18 +60,35 @@ export async function POST(request) {
       .limit(20);
 
     // Build Gemini conversation format
-    const contents = [];
+    // Gemini requires: first message must be "user", roles must alternate
+    const rawContents = [];
 
-    // Add system instruction as first user message context
     (history || []).forEach((m) => {
-      contents.push({
+      rawContents.push({
         role: m.sender === "visitor" ? "user" : "model",
         parts: [{ text: m.message.replace(/^🤖\s?/, "") }],
       });
     });
 
-    // Make sure last message is user's
-    if (contents.length === 0 || contents[contents.length - 1].role !== "user") {
+    // Ensure the last message is the visitor's current message
+    if (rawContents.length === 0 || rawContents[rawContents.length - 1].role !== "user") {
+      rawContents.push({ role: "user", parts: [{ text: visitorMessage }] });
+    }
+
+    // Fix: ensure first message is "user" and roles alternate
+    const contents = [];
+    for (const msg of rawContents) {
+      if (contents.length === 0 && msg.role === "model") continue; // Skip leading model messages
+      if (contents.length > 0 && contents[contents.length - 1].role === msg.role) {
+        // Merge consecutive same-role messages
+        contents[contents.length - 1].parts[0].text += "\n" + msg.parts[0].text;
+      } else {
+        contents.push(msg);
+      }
+    }
+
+    // Safety: if still empty or doesn't start with user
+    if (contents.length === 0) {
       contents.push({ role: "user", parts: [{ text: visitorMessage }] });
     }
 
@@ -100,9 +117,15 @@ export async function POST(request) {
     );
 
     if (!response.ok) {
-      const err = await response.text();
-      console.error("Gemini API error:", response.status, err);
-      return Response.json({ replied: false, reason: "api_error" });
+      const errText = await response.text();
+      console.error("Gemini API error:", response.status, errText);
+      // Fallback: send a default message if Gemini fails
+      await sb.from("chat_messages").insert({
+        conversation_id: conversationId,
+        sender: "admin",
+        message: `🤖 Merci pour votre message ! Djlo n'est pas disponible pour le moment mais il vous répondra dès que possible. En attendant, n'hésitez pas à laisser votre email pour qu'il puisse vous recontacter.`,
+      });
+      return Response.json({ replied: true, reason: "fallback" });
     }
 
     const data = await response.json();
