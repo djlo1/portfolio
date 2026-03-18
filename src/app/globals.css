@@ -290,4 +290,61 @@ body {
   .container-custom {
     padding: 0 16px;
   }
+
+  /* Fix overflow on mobile */
+  body {
+    overflow-x: hidden;
+  }
+
+  section {
+    padding-top: 64px;
+    padding-bottom: 64px;
+  }
+
+  .section-heading {
+    font-size: 1.75rem;
+    line-height: 1.2;
+  }
+
+  /* Hero responsive */
+  .hero-orb {
+    display: none;
+  }
+
+  /* Smaller glass cards on mobile */
+  .glass-card {
+    border-radius: 12px;
+  }
+
+  /* Button responsive */
+  .btn-primary,
+  .btn-outline {
+    padding: 10px 20px;
+    font-size: 0.85rem;
+  }
+
+  /* Stats responsive */
+  .stats {
+    gap: 16px;
+  }
+
+  /* Skills grid */
+  .skill-bar-bg {
+    height: 5px;
+  }
+
+  .tech-tag {
+    font-size: 0.6rem;
+    padding: 3px 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .container-custom {
+    padding: 0 12px;
+  }
+
+  .section-heading {
+    font-size: 1.5rem;
+  }
 }
