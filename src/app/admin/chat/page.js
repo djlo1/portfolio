@@ -58,10 +58,78 @@ export default function AdminChat() {
     if (!sb || !activeConvo) return;
     const ch = sb.channel(`admin_msg_${activeConvo.id}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages", filter: `conversation_id=eq.${activeConvo.id}` },
-        (payload) => setMessages(prev => prev.find(m => m.id === payload.new.id) ? prev : [...prev, payload.new]))
+        (payload) => {
+          setMessages(prev => prev.find(m => m.id === payload.new.id) ? prev : [...prev, payload.new]);
+          // Notify if message from visitor
+          if (payload.new.sender === "visitor") {
+            playNotifSound();
+            setUnread(prev => prev + 1);
+            if (document.hidden && Notification.permission === "granted") {
+              new Notification("Nouveau message", { body: payload.new.message.slice(0, 80), icon: "/favicon.ico" });
+            }
+          }
+        })
       .subscribe();
     return () => sb.removeChannel(ch);
   }, [activeConvo]);
+
+  // Listen for new conversations (visitor just started chatting)
+  useEffect(() => {
+    if (!sb || !session) return;
+    const ch = sb.channel("admin_new_msg_global")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" },
+        (payload) => {
+          // Only notify for visitor messages and if not in active convo
+          if (payload.new.sender === "visitor" && (!activeConvo || payload.new.conversation_id !== activeConvo.id)) {
+            playNotifSound();
+            setUnread(prev => prev + 1);
+            if (Notification.permission === "granted") {
+              new Notification("Nouveau message chat", { body: payload.new.message.slice(0, 80), icon: "/favicon.ico" });
+            }
+          }
+          fetchConvos();
+        })
+      .subscribe();
+    return () => sb.removeChannel(ch);
+  }, [session, activeConvo, fetchConvos]);
+
+  // Request notification permission
+  useEffect(() => {
+    if (typeof window !== "undefined" && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  // Play notification sound
+  const playNotifSound = () => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+      osc.frequency.setValueAtTime(1100, ctx.currentTime + 0.1);
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.4);
+    } catch {}
+  };
+
+  // Flash tab title on new message
+  const [unread, setUnread] = useState(0);
+  useEffect(() => {
+    if (unread <= 0) { document.title = "Admin Chat — Djlo"; return; }
+    let on = true;
+    const iv = setInterval(() => {
+      document.title = on ? `(${unread}) Nouveau message !` : "Admin Chat — Djlo";
+      on = !on;
+    }, 1000);
+    const reset = () => { setUnread(0); document.title = "Admin Chat — Djlo"; };
+    window.addEventListener("focus", reset);
+    return () => { clearInterval(iv); window.removeEventListener("focus", reset); document.title = "Admin Chat — Djlo"; };
+  }, [unread]);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
